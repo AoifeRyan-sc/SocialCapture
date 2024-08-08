@@ -1,0 +1,12 @@
+name: SamyScreenshots
+title: SamyScreenshots
+username: aoiferyan
+account: aoiferyan
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 12390897
+bundleId: 8929638
+url: https://aoiferyan.shinyapps.io/SamyScreenshots/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE

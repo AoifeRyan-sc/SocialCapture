@@ -1,0 +1,637 @@
+---
+title: "Image Wall Trial"
+output: html_document
+date: "2024-07-25"
+---
+
+# Load Data
+
+```{r}
+library(tidyverse)
+```
+
+First let's get a sample of some permalinks to embed
+
+```{r}
+data <- ParseR::sprinklr_export %>% janitor::clean_names()
+data %>% colnames()
+data %>% distinct(social_network)
+
+data %>% pull(permalink) %>% extract_source() %>% unique()
+
+permalink_samp <- data %>%
+  group_by(social_network) %>%
+  sample_n(5) %>%
+  ungroup() %>%
+  pull(permalink)
+
+linkedin_permalinks <- c(
+  "https://www.linkedin.com/feed/update/urn:li:share:7188476727067594753",
+  "https://www.linkedin.com/feed/update/urn:li:ugcPost:7208453444964134912",
+  "https://www.linkedin.com/feed/update/urn:li:ugcPost:7185940056908476416",
+  "https://www.linkedin.com/feed/update/urn:li:ugcPost:7194275003356381184",
+  "https://www.linkedin.com/feed/update/urn:li:ugcPost:7183750606958776320",
+  "https://www.linkedin.com/feed/update/urn:li:ugcPost:7202308920336351232")
+
+youtube_samp <- c("https://www.youtube.com/shorts/sqVTJZ_Fkq0",
+                  "https://www.youtube.com/shorts/FgU8s99P_zk",
+                  "https://www.youtube.com/watch?v=vIvxoy9jQn8",
+                  "https://www.youtube.com/shorts/QRNVpT0mg_Q",
+                  "https://www.youtube.com/shorts/rIk6KDFuiCw")
+
+facebook_permalinks <- c(
+  "https://www.facebook.com/photo.php?fbid=764788502502938&set=a.560181062963684&type=3",
+  "https://www.facebook.com/560181189630338/posts/755938223387966",
+  "https://www.facebook.com/560181189630338/posts/759706999677755",
+  "https://www.facebook.com/photo.php?fbid=751491823832606&set=a.560181062963684&type=3",
+  "https://www.facebook.com/560181189630338/posts/735957828719339",
+  "https://www.facebook.com/560181189630338/videos/26002920519322208")
+
+threads_permalinks <- c(
+  "https://www.threads.net/@gulfoilinternational/post/C5Vy-exOMrT",
+  "https://www.threads.net/@gulfoilinternational/post/C6YvYULovce",
+  "https://www.threads.net/@gulfoilinternational/post/C6qxNOauTze",
+  "https://www.threads.net/@gulfoilinternational/post/C7OZBQsNbvQ",
+  "https://www.threads.net/@gulfoilinternational/post/C66Zv81t8vf")
+
+tiktok_permalinks <- c(
+  "https://www.tiktok.com/@gulfoilinternational/video/7353995974261493025",
+  "https://www.tiktok.com/@gulfoilinternational/video/7242299307963976965",
+  "https://www.tiktok.com/@gulfoilinternational/video/7240412922386648326",
+  "https://www.tiktok.com/@gulfoilinternational/video/7247834632450772229",
+  "https://www.tiktok.com/@gulfoilinternational/video/7310225736944700704")
+
+```
+
+
+# Functions for embedding
+
+Ok now we have some permalinks - let's render them, this is the code from the demoApp:
+
+General functions:
+```{r}
+extract_source <- function(permalink) stringr::str_extract(permalink, "(\\w+)\\.(com|net|co\\.uk)", group = 1)
+
+embed_switch <- function(permalink) {
+  source <- extract_source(permalink)
+  
+  embed <- switch(
+    source,
+    "reddit" = create_reddit_embed(permalink),
+    "instagram" = create_instagram_embed(permalink),
+    "x" = create_tweet_embed(permalink),
+    "youtube" = create_youtube_embed(permalink),
+    "facebook" = create_facebook_embed(permalink),
+    "linkedin" = create_linkedin_embed(permalink),
+    "threads" = create_threads_embed(permalink),
+    "tiktok" = create_tiktok_embed(permalink)
+  )
+
+  return(embed )
+}
+
+# sets the max height and makes element scrollable
+style_embedding <- function(height = 717) {
+                            # width = 403) {
+  start_div <- paste0("<div style='height: ", height, "px; overflow-y: auto;'>")
+                      # width: ", width, "px; 
+  end_div <- "</div>"
+  
+  return(list(start_div = start_div, end_div = end_div))
+}
+
+style_embedding_expand <- function(height = 717){
+  
+   start_div <- paste0("<div style='height: ", height, "px; overflow-y: auto; position: relative; width: 100%; padding-bottom: 200%; height: 0; overflow: hidden; max-width: 100%; background: #fff;'>")
+                      # width: ", width, "px; 
+  end_div <- "</div>"
+  
+  return(list(start_div = start_div, end_div = end_div))
+}
+```
+
+Embed Reddits
+```{r}
+create_reddit_embed <- function(permalink){
+  if(!grepl("reddit", permalink)) stop("Not a reddit link")
+  
+  subreddit <- extract_subreddit(permalink)
+  
+  reddit_html <- extract_reddit_html(permalink, subreddit)
+  
+  return(reddit_html)
+}
+
+extract_subreddit <- function(permalink) stringr::str_extract(permalink, "/r/(\\w+)", group = 1)
+
+extract_reddit_html <- function(url, subreddit) {
+  
+  embedding_style <- style_embedding(height = 500)
+  html <- paste0(embedding_style$start_div, '<blockquote class="reddit-embed-bq" style="height:400px" data-embed-height="597"><a href="',
+                 url, '">Link to post</a><br></a> in<a href="https://www.reddit.com/r/', subreddit, '">',
+                 subreddit, '</a></blockquote><script async="" src="https://embed.reddit.com/widgets.js" charset="UTF-8"></script>',
+                 embedding_style$end_div)
+  
+  return(shiny::HTML(html))
+}
+```
+
+Embed Instagram
+```{r}
+create_instagram_embed <- function(permalink) {
+    
+    embedding_style <- style_embedding(height = 717)
+    
+    html <- paste0(embedding_style$start_div,'<blockquote class="instagram-media" data-instgrm-permalink="',
+                   permalink, '" data-instgrm-version="12" style=" background:#FFF; border:0; border-radius:3px; box-shadow:0 0 1px 0 rgba(0,0,0,0.5),0 1px 10px 0 rgba(0,0,0,0.1); margin: 1px; max-width:540px; min-width:326px; padding:0; width:99.375%; width:-webkit-calc(100% - 2px); width:calc(100% - 2px);">
+      <div style="padding:16px;">
+      </div>
+    </blockquote>
+    <script async defer src="//www.instagram.com/embed.js"></script>', embedding_style$end_div)
+    
+    return(shiny::HTML(html))
+}
+```
+
+Embed Tweets - this needs some work
+```{r}
+create_tweet_embed <- function(permalink) {
+  tweet_id <- extract_tweet_id(permalink)
+  tweet_screen_name <- extract_tweet_screen_name(permalink)
+  embedding_style <- style_embedding(height = 500)
+  
+  tweet_blockquote <- get_tweet_blockquote(screen_name = tweet_screen_name, status_id = tweet_id)
+  
+  # x_logo <-  shiny::tags$img(src ="x_logo.png", align = "left",
+  #                            width = "36px", height = "30px",
+  #                            style = "margin-left: 20px; margin-right: 10px")
+
+  x_logo <-  htmltools::tags$img(src ="x_logo.png", align = "right",
+                             width = "36px", height = "30px",
+                             style = "margin-right: 20px; margin-bottom: 50px")
+ 
+  if (!is.null(tweet_blockquote)) {
+    html <- paste0(
+      embedding_style$start_div,
+      tweet_blockquote, 
+      x_logo,
+      embedding_style$end_div)
+    
+    return(shiny::HTML(html))
+  } else {
+    
+    return(NULL)
+  }
+}
+
+extract_tweet_id <- function(permalink) stringr::str_extract(permalink, "status/(\\d+)", group = 1)
+
+extract_tweet_screen_name <- function(permalink){
+  
+  if (length(grep("x.com", permalink))){
+    stringr::str_extract(permalink, "x.com/(\\w+)", group = 1)
+  } else {
+    stringr::str_extract(permalink, "twitter.com/(\\w+)", group = 1)
+  }
+} 
+
+# Yoinked from Gadenbuie's Tweet Conf package
+get_tweet_blockquote <- function(screen_name, status_id, ..., null_on_error = TRUE, theme = "light") {
+  oembed <- list(...)$oembed
+  if (!is.null(oembed) && !is.na(oembed)) return(unlist(oembed))
+  # oembed_url <- glue::glue("https://publish.twitter.com/oembed?url=https://twitter.com/{screen_name}/status/{status_id}&omit_script=1&dnt=1&theme={theme}")
+  oembed_url <- glue::glue("https://publish.twitter.com/oembed?url=https://twitter.com/{screen_name}/status/{status_id}&omit_script=1&dnt=1&theme={theme}")
+  bq <- purrr::possibly(httr::GET, list(status_code = 999))(URLencode(oembed_url))
+  if (bq$status_code >= 400) {
+    if (null_on_error) return(NULL)
+    '<blockquote style="font-size: 90%">Sorry, unable to get tweet ¯\\_(ツ)_/¯</blockquote>'
+  } else {
+    httr::content(bq, "parsed")$html
+  }
+}
+
+# this is plucked from gadenbuie's tweetrmd file
+tweet_blockquote <- function(
+  tweet_url,
+  maxwidth = 550,
+  hide_media = FALSE,
+  hide_thread = FALSE,
+  omit_script = TRUE,
+  align = c("none", "left", "right", "center"),
+  related = NULL,
+  lang = "en",
+  theme = c("light", "dark"),
+  link_color = NULL,
+  widget_type = NULL,
+  dnt = TRUE,
+  ...,
+  result_only = FALSE
+) {
+  align <- match.arg(align)
+  theme <- match.arg(theme)
+  if (!is.null(widget_type) && !identical(widget_type, "video")) {
+    stop("`widget_type` must be NULL or 'video'")
+  }
+
+  url <- httr::parse_url("https://publish.twitter.com/oembed")
+  url$query <- list(
+    url = tweet_url,
+    maxwidth = maxwidth,
+    hide_media = validate_true(hide_media),
+    hide_thread = validate_true(hide_thread),
+    omit_script = omit_script,
+    align = align,
+    related = related %||% paste(related, collapse = ","),
+    lang = lang,
+    theme = theme,
+    link_color = link_color,
+    widget_type = widget_type,
+    dnt = validate_true(dnt),
+    ...
+  )
+
+  url <- httr::build_url(url)
+  res <- httr::GET(url)
+  httr::stop_for_status(res)
+  if (!grepl("application/json", res$headers$`content-type`)) {
+    stop("Expected json response, got ", res$headers$`content-type`)
+  }
+  if (isTRUE(result_only)) return(res)
+  res_txt <- httr::content(res, "text")
+  res_json <- jsonlite::fromJSON(res_txt)
+  htmltools::HTML(res_json$html)
+}
+
+validate_true <- function(x) {
+  if (isTRUE(x) || identical(tolower(x), "t") || x == 1) {
+    TRUE
+  } else FALSE
+}
+
+tweet_embed <- function(
+  tweet_url,
+  maxwidth = 550,
+  plain = FALSE,
+  hide_media = FALSE,
+  hide_thread = FALSE,
+  omit_script = TRUE,
+  align = c("none", "left", "right", "center"),
+  related = NULL,
+  lang = "en",
+  theme = c("light", "dark"),
+  link_color = NULL,
+  widget_type = NULL,
+  dnt = TRUE
+) {
+
+  if (plain) omit_script <- TRUE
+
+  bq <- tweet_blockquote(
+    tweet_url   = tweet_url,
+    maxwidth    = maxwidth,
+    hide_media  = hide_media,
+    hide_thread = hide_thread,
+    omit_script = omit_script,
+    align       = align,
+    related     = related,
+    lang        = lang,
+    theme       = theme,
+    link_color  = link_color,
+    widget_type = widget_type,
+    dnt         = dnt
+  )
+
+  if (omit_script & !plain) {
+    bq <- htmltools::tagList(html_dependency_twitter(), bq)
+  }
+  htmltools::browsable(bq)
+}
+
+html_dependency_twitter <- function() {
+  htmltools::htmlDependency(
+    name = "twitter-widget",
+    version = "0.0.1",
+    package = "tweetrmd",
+    src = c(
+      file = "tw",
+      href = "https://platform.twitter.com/"
+    ),
+    script = "widgets.js",
+    all_files = FALSE
+  )
+}
+
+```
+
+Try something new
+```{r}
+# install.packages("devtools")
+devtools::install_github("gadenbuie/tweetrmd")
+
+test <- tweetrmd::tweet_embed(permalink_samp[[6]])
+tweetrmd::tweet_screenshot(permalink_samp[[6]])
+class(test)
+
+print(test)
+```
+
+From here are functions that I have made for new sources
+
+YouTube - I have removed the standard styling so I might need to go back and look at this
+```{r}
+
+# '<iframe width="560" height="315" src="https://www.youtube.com/embed/vIvxoy9jQn8?si=EP1VYvTPxHTg96te" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>'
+
+# '<iframe width="403" height="717" src="https://www.youtube.com/embed/sqVTJZ_Fkq0" title="Unstoppable Journeys" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>'
+
+create_youtube_embed <- function(permalink) {
+
+    if (length(grep("short", permalink)) > 0){
+    width <- 403
+    height <- 717
+    permalink_split <- strsplit(permalink, "shorts", fixed = TRUE)[[1]]
+  } else{
+    width <- 560
+    height <- 315
+    permalink_split <- strsplit(permalink, "watch?v=", fixed = TRUE)[[1]]
+    permalink_split[2] <- paste0("/", permalink_split[2])
+  }
+    
+    html <- paste0(
+      '<iframe width="', width, '" height="', height, '" src="', permalink_split[1], 'embed', permalink_split[2], '" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>'
+      )
+    
+    return(shiny::HTML(html))
+}
+```
+
+Facebook - I can't change height ratio but I can make it all have a max height - maybe I could look more into iframe?
+```{r}
+create_facebook_embed <- function(permalink) {
+    width <- 403
+    height <- 717
+    embedding_style <- style_embedding(height = 717)
+    
+    if(length(grep("video", permalink)) > 0){
+      class <- "video"
+    } else {
+      class <- "post"
+    }
+    print(class)
+    
+    html <- paste0(
+      # embedding_style$start_div,
+    '<div id="fb-root"></div>
+<script async defer src="https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v3.2"></script>',
+'<div class="fb-', class, '" data-href="', permalink, '"  data-width="', 
+width,
+# "auto",
+'" data-show-text="true" style="border:none;overflow:hidden;height:717px; scrolling="no" frameborder="0" allowfullscreen="true" allow="autoplay"></div>'
+# embedding_style$end_div
+)
+    
+    return(shiny::HTML(html))
+}
+
+```
+
+Linkedin
+```{r}
+create_linkedin_embed <- function(permalink){
+  split_perm <- strsplit(permalink, "feed", fixed = T)
+  
+  width <- "403"
+  height <- "717"
+  
+  html <- paste0('<div class="embed-container"><iframe src="', split_perm[[1]][1], 'embed/feed', split_perm[[1]][2],
+         '" height="', height, '" width="', width, '" frameborder="0" allowfullscreen="" title="Embedded post"></iframe></div>')
+  
+  return(shiny::HTML(html))
+}
+```
+
+Threads
+```{r}
+create_threads_embed <- function(permalink){
+  width <- 403
+  height <- 717
+  
+  # embedding_style <- style_embedding_expand(height = 717)
+  # embedding_style <- style_embedding(height = 717)
+  
+  html <- paste0(
+    # embedding_style$start_div,
+    # '<div class="threads-post">',
+    '<iframe src="', permalink, '/embed" width="', width, '" height="', height, '" frameborder="0" style="border:none;overflow:hidden" scrolling="no" frameborder="0" allowTransparency="true" allowFullScreen="true"></iframe>',
+    # embedding_style$end_div,
+    embedding_style$end_div)
+  
+  return(shiny::HTML(html))
+}
+
+
+```
+
+tiktok - this is taken from gadenbuie
+```{r}
+create_tiktok_embed <- function(url) {
+  tt_oembed_url <- sprintf(
+    "https://www.tiktok.com/oembed?url=%s",
+    eg
+  )
+  res <- httr::GET(tt_oembed_url)
+  httr::stop_for_status(res, "Get embedding information from tiktok")
+  tt <- httr::content(res)
+
+  expected_items <- c("title", "author_name", "author_url", "html")
+  if (!all(expected_items %in% names(tt))) {
+    warning(
+      "Received unusual response from TikTok oEmbed API ",
+      "for this video:", url,
+      immediate. = TRUE
+    )
+  }
+
+  return(shiny::HTML(tt$html))
+}
+
+```
+
+```{r}
+remotes::install_github("gadenbuie/tiktokrmd")
+library(tiktokrmd)
+
+tt_url <- "https://www.tiktok.com/@aquickspoonful/video/6890681375431691526"
+tt <- tiktok_embed(tt_url)
+
+## # in R Markdown, just print the object to embed it
+## tt
+
+# Or write a plain markdown version
+tiktok_md(tt)
+#> [1] "![[#cake #cakes #dontmixit #cakelover #cakelovers #dumpcake #food #tiktokfood #foodtiktok #easyrecipe #easyrecipes #peach #peaches #cinnamon #fyp](https://www.tiktok.com/@aquickspoonful/video/6890681375431691526) by [Sophia Wasu](https://www.tiktok.com/@aquickspoonful)](https://p16-sign-va.tiktokcdn.com/obj/tos-maliva-p-0068/00189a8b703343bd817a3ccaec240f71?x-expires=1610654400&x-signature=ExJZaEMAgxhyXydfgsqgZqU%2B8y8%3D)"
+
+# Or as HTML without the full TikTok embedded player shenanigans
+tiktok_html(tt, include_player = FALSE)
+```
+
+# Embed
+
+embed docs
+```{r}
+embedded_posts <- lapply(c(permalink_samp, youtube_samp, facebook_permalinks, linkedin_permalinks, threads_permalinks), embed_switch)
+```
+
+display in shiny app
+```{r}
+library(shiny)
+
+ui <- fluidPage(
+    # tags$head(
+    # tags$style(HTML("
+    #   .embed-container {
+    #     position: relative;
+    #     width: 100%;
+    #     padding-bottom: 20%; /* This maintains a 16:9 aspect ratio */
+    #     height: 0;
+    #     overflow: hidden;
+    #     max-width: 100%;
+    #     background: #000;
+    #   }
+    #   .fb-post, .fb-video {
+    #     position: absolute;
+    #     top: 0;
+    #     left: 0;
+    #     width: 100%;
+    #     height: 100%;
+    #   } 
+    # ")) # this is what makes the fb posts a constant max height - ok idk is this actually working - look more at later
+  # ),
+  uiOutput("renders")
+)
+
+server <- function(input, output) {
+  output$renders <- renderUI({
+    do.call(bslib::layout_column_wrap, c(width = 1/3, embedded_posts))
+  })
+}
+
+shiny::shinyApp(ui, server)
+```
+
+- Twitter posts not rendering at all
+- 4th reddit post says "Not supported comment"
+- First instagram post renders but says "link may be broken"
+```{r}
+permalink_samp[[14]] # "Not supported comment" reddit post - banned user
+embedded_posts[[14]] 
+
+embedded_posts[[6]]
+```
+
+The twitter function is returning a "NULL" value and there is nothing in the reddit embedded post that indicates that the account is banned so not sure how we could safeguard against that.
+
+Let's look at Twitter a bit closer. For this permalink
+```{r}
+'https://www.twitter.com/PS44ShineOn/status/1053293768999387136'
+```
+
+This is the embedded post
+```{r}
+test_x <- '<blockquote class="twitter-tweet"><p lang="en" dir="ltr">Celebrating Hispanic Heritage Month <a href="https://twitter.com/hashtag/alightintheharbor?src=hash&amp;ref_src=twsrc%5Etfw">#alightintheharbor</a> <a href="https://twitter.com/hashtag/inspired31?src=hash&amp;ref_src=twsrc%5Etfw">#inspired31</a> <a href="https://t.co/tr5ohyfAfC">pic.twitter.com/tr5ohyfAfC</a></p>&mdash; PS44 (@PS44ShineOn) <a href="https://twitter.com/PS44ShineOn/status/1053293768999387136?ref_src=twsrc%5Etfw">October 19, 2018</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>'
+
+
+ui <- fluidPage(
+  shiny::HTML(test_x)
+)
+
+server <- function(input, output, session) {
+}
+
+shiny::shinyApp(ui, server)
+```
+
+I stole this function from gadenbuie's website
+```{r}
+get_tweet_blockquote <- function(screen_name, status_id, ..., null_on_error = TRUE, theme = "light") {
+  oembed <- list(...)$oembed
+  if (!is.null(oembed) && !is.na(oembed)) return(unlist(oembed))
+  oembed_url <- glue::glue("https://publish.twitter.com/oembed?url=https://twitter.com/{screen_name}/status/{status_id}&omit_script=1&dnt=1&theme={theme}")
+  bq <- possibly(httr::GET, list(status_code = 999))(URLencode(oembed_url))
+  if (bq$status_code >= 400) {
+    if (null_on_error) return(NULL)
+    '<blockquote style="font-size: 90%">Sorry, unable to get tweet ¯\\_(ツ)_/¯</blockquote>'
+  } else {
+    httr::content(bq, "parsed")$html
+  }
+}
+
+test_gen_permalink <- get_tweet_blockquote(screen_name = "PS44ShineOn",
+                     status_id = 1053293768999387136)
+
+ui <- fluidPage(
+  shiny::HTML(test)
+)
+
+server <- function(input, output, session) {
+}
+
+shiny::shinyApp(ui, server)
+```
+
+What about youtube?
+```{r}
+
+embedded_youtube <- lapply(youtube_samp, embed_switch)
+
+library(shiny)
+
+ui <- fluidPage(
+  uiOutput("renders")
+)
+
+server <- function(input, output) {
+  output$renders <- renderUI({
+    do.call(bslib::layout_column_wrap, c(width = 1/3, c(embedded_youtube, embedded_posts[-c(6:10)])))
+  })
+}
+
+shiny::shinyApp(ui, server)
+```
+
+What about an instagram video
+
+```{r}
+reel_embed <- embed_switch("https://www.instagram.com/reel/C841d2QoesC/")
+
+ui <- fluidPage(
+  shiny::HTML(reel_embed)
+)
+
+server <- function(input, output, session) {
+}
+
+shiny::shinyApp(ui, server)
+```
+
+This works!!
+
+```{r}
+embedded_tweet <- tweet_blockquote(permalink_samp[[6]])
+
+ui <- fluidPage(
+  # shiny::HTML(tweet_blockquote)
+  shiny::uiOutput("testing_twitter")
+)
+
+server <- function(input, output, session) {
+  output$testing_twitter <- renderUI({
+     # htmltools::browsable(htmltools::tagList(html_dependency_twitter(), embedded_tweet))
+    permalink_samp[6:9] %>%
+      pmap_chr(get_tweet_blockquote) %>%
+        HTML()
+  })
+}
+
+shiny::shinyApp(ui, server)
+```
