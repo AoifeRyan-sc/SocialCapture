@@ -1,12 +1,4 @@
 ui <- fluidPage(
-#   shiny::tags$script('
-#   Shiny.addCustomMessageHandler("fbParse", function(message) {
-#     if (typeof FB !== "undefined") {
-#       FB.XFBML.parse();
-#     }
-#   });
-# '), # I have since removed the part of codet his references
-
   theme = bslib::bs_theme(
     bootswatch = "sandstone",
     heading_font = bslib::font_face(family = "Cinzel-SemiBold",
@@ -19,7 +11,8 @@ ui <- fluidPage(
       width = 500,
       permalinkUploadUI("permalink_upload_panel")
       ),
-    embedPostsUI("embed_post_panel"),
+    # "Main contents",
+    embedPostsUI("embed_post_panel")
     )
 )
 

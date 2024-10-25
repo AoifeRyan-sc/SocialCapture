@@ -14,21 +14,15 @@ embedPostsServer <- function(id, r){
       r$embedded_posts <- lapply(r$permalinks, embed_switch)
     })
 
-    display_posts <- shiny::reactive({
+    output$rendered_posts <- shiny::renderUI({
       req(r$embedded_posts)
       if(all(lapply(r$permalinks, extract_source) %in% c("threads", "twitter", "x", "facebook"))){
+        print("one")
         create_div_layout(r$embedded_posts, posts_per_row = 3)
       } else {
-        debug <- do.call(bslib::layout_column_wrap, c(width = 1/3, c(r$embedded_posts)))
-        print(htmltools::browsable(debug))
-        debug
+        do.call(bslib::layout_column_wrap, c(width = 1/3, c(r$embedded_posts)))
       }
     })
-
-    output$rendered_posts <- shiny::renderUI({
-      display_posts()
-      })
-
   })
 }
 
