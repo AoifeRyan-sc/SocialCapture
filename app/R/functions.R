@@ -70,8 +70,6 @@ create_div_layout <- function(embedded_links, posts_per_row = 3){
     div_list <- append(div_list, list(div(style = container_style, row_display)))
   }
 
-  print(div_list)
-
   return(shiny::tagList(div_list))
 
 
@@ -148,12 +146,45 @@ create_facebook_embed <- function(permalink) {
   height <- 717
   embedding_style <- style_embedding(height = 717)
 
+  redirect_info <- base::curlGetHeaders(permalink)
+  permalink_location <- grep(pattern = "\\blocation\\b", redirect_info, value = T, ignore.case = TRUE)
+
+  if (length(permalink_location) > 0 & length(permalink_location) < 2){
+    url_pattern <- "https?://.*"
+    redirect_permalink <- regmatches(permalink_location, regexpr(url_pattern, permalink_location))
+
+    if (length(grep("unsupportedbrowser", redirect_permalink)) > 0){
+      message("using custom user agent")
+      h <- new_handle()
+      handle_setopt(h,
+                    followlocation = TRUE,
+                    useragent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+      permalink_info <- curl_fetch_memory(url, handle = h)
+      redirect_permalink <- permalink_info$url
+
+      if (length(rep("unsupportedbrowser", redirect_permalink)) > 0){
+        return(shiny::HTML(sprintf('try the link <a href="%s" target="_blank">here</a>', "https://wheregoes.com/")))
+      }
+    }
+
+    permalink <- redirect_permalink
+
+  } else if (length(permalink_location) > 2){
+    return(shiny::HTML("multiple permalinks identified"))
+  }
+
   if(length(grep("video", permalink)) > 0){
     class <- "video"
   } else {
     class <- "post"
   }
-  print(class)
+  print(permalink)
+
+  # this is me trying to replicate the stuff on the site ----
+  # html <- paste0('<div class="fb-', class,
+  #               '" data-href="', permalink,
+  #               '" data-width="500" data-show-text="true"></div>'
+  #               )
 
   html <- paste0(
     # embedding_style$start_div,
