@@ -18,6 +18,7 @@ RUN apt-get update -qq && apt-get -y --no-install-recommends install \
 ## app folder
 COPY /app ./app
 COPY deploy.R deploy.R
+COPY renv.lock /renv.lock 
 
 # Install renv
 RUN Rscript -e 'install.packages("renv")' &&\
